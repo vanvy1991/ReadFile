@@ -16,16 +16,22 @@
 
 package com.example.android.pdfrendererbasic;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.pdf.PdfRenderer;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -36,7 +42,7 @@ import java.io.IOException;
  * This fragment has a big {@ImageView} that shows PDF pages, and 2 {@link android.widget.Button}s to move between
  * pages. We use a {@link android.graphics.pdf.PdfRenderer} to render PDF pages as {@link android.graphics.Bitmap}s.
  */
-public class PdfRendererBasicFragment extends Fragment implements View.OnClickListener {
+public class PdfRendererBasicFragment extends Fragment{
 
     /**
      * Key string for saving the state of current page index.
@@ -71,8 +77,9 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
     /**
      * {@link android.widget.Button} to move to the next page.
      */
-    private Button mButtonNext;
-
+    private int count =-1;
+    private Thread thread;
+    private Handler handler = new Handler();
     public PdfRendererBasicFragment() {
     }
 
@@ -87,18 +94,32 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
         super.onViewCreated(view, savedInstanceState);
         // Retain view references.
         mImageView = (ImageView) view.findViewById(R.id.image);
-        mButtonPrevious = (Button) view.findViewById(R.id.previous);
-        mButtonNext = (Button) view.findViewById(R.id.next);
         // Bind events.
-        mButtonPrevious.setOnClickListener(this);
-        mButtonNext.setOnClickListener(this);
-        // Show the first page by default.
-        int index = 0;
-        // If there is a savedInstanceState (screen orientations, etc.), we restore the page index.
-        if (null != savedInstanceState) {
-            index = savedInstanceState.getInt(STATE_CURRENT_PAGE_INDEX, 0);
-        }
-        showPage(index);
+        thread = new Thread() {
+            public void run() {
+                // do something here
+                showPage();
+                handler.postDelayed(this, 7000);
+            }
+        };
+
+
+
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        handler.removeCallbacks(thread);
+        handler.postDelayed(thread, 0);
+        Log.d("xxx", "onResume");
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        handler.removeCallbacks(thread);
+        Log.d("xxx", "onPause");
     }
 
     @Override
@@ -123,6 +144,7 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
         super.onDetach();
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
@@ -134,6 +156,7 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
     /**
      * Sets up a {@link android.graphics.pdf.PdfRenderer} and related resources.
      */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void openRenderer(Context context) throws IOException {
         // In this sample, we read a PDF from the assets directory.
         mFileDescriptor = context.getAssets().openFd("sample.pdf").getParcelFileDescriptor();
@@ -146,6 +169,7 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
      *
      * @throws java.io.IOException When the PDF file cannot be closed.
      */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void closeRenderer() throws IOException {
         if (null != mCurrentPage) {
             mCurrentPage.close();
@@ -156,19 +180,19 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
 
     /**
      * Shows the specified page of PDF to the screen.
-     *
-     * @param index The page index.
      */
-    private void showPage(int index) {
-        if (mPdfRenderer.getPageCount() <= index) {
-            return;
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void showPage() {
+        count++;
+        if (mPdfRenderer.getPageCount() == (count)) {
+            count = 0;
         }
         // Make sure to close the current page before opening another one.
         if (null != mCurrentPage) {
             mCurrentPage.close();
         }
         // Use `openPage` to open a specific page in PDF.
-        mCurrentPage = mPdfRenderer.openPage(index);
+        mCurrentPage = mPdfRenderer.openPage(count);
         // Important: the destination bitmap must be ARGB (not RGB).
         Bitmap bitmap = Bitmap.createBitmap(mCurrentPage.getWidth(), mCurrentPage.getHeight(),
                 Bitmap.Config.ARGB_8888);
@@ -179,18 +203,20 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
         mCurrentPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
         // We are ready to show the Bitmap to user.
         mImageView.setImageBitmap(bitmap);
-        updateUi();
+        Animation hyperspaceJumpAnimation = AnimationUtils.loadAnimation(getActivity(), R.anim.anim_slide_bottom_top);
+        mImageView.startAnimation(hyperspaceJumpAnimation);
+//        updateUi();
+
     }
 
     /**
      * Updates the state of 2 control buttons in response to the current page index.
      */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void updateUi() {
         int index = mCurrentPage.getIndex();
         int pageCount = mPdfRenderer.getPageCount();
-        mButtonPrevious.setEnabled(0 != index);
-        mButtonNext.setEnabled(index + 1 < pageCount);
-        getActivity().setTitle(getString(R.string.app_name_with_index, index + 1, pageCount));
+//        getActivity().setTitle(getString(R.string.app_name_with_index, index + 1, pageCount));
     }
 
     /**
@@ -198,24 +224,11 @@ public class PdfRendererBasicFragment extends Fragment implements View.OnClickLi
      *
      * @return The number of pages.
      */
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     public int getPageCount() {
         return mPdfRenderer.getPageCount();
     }
 
-    @Override
-    public void onClick(View view) {
-        switch (view.getId()) {
-            case R.id.previous: {
-                // Move to the previous page
-                showPage(mCurrentPage.getIndex() - 1);
-                break;
-            }
-            case R.id.next: {
-                // Move to the next page
-                showPage(mCurrentPage.getIndex() + 1);
-                break;
-            }
-        }
-    }
+
 
 }
